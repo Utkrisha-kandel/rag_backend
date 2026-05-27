@@ -33,6 +33,9 @@ class ChatMemoryClient:
     def _key(self, session_id: str) -> str:
         return f"chat:history:{session_id}"
 
+    def _eval_key(self, session_id: str) -> str:      # <-- ADD THIS
+        return f"eval:{session_id}"
+
     async def get_history(self, session_id: str) -> list[dict[str, Any]]:
         raw = await self._redis.get(self._key(session_id))
         if not raw:
@@ -50,6 +53,17 @@ class ChatMemoryClient:
 
     async def clear_history(self, session_id: str) -> None:
         await self._redis.delete(self._key(session_id))
+    async def append_eval_sample(self, session_id: str, sample: dict) -> None:
+        await self._redis.rpush(self._eval_key(session_id), json.dumps(sample))
+
+    async def get_all_eval_samples(self) -> list[dict]:
+        keys = await self._redis.keys("eval:*")
+        samples = []
+        for key in keys:
+            data = await self._redis.lrange(key, 0, -1)
+            for item in data:
+                samples.append(json.loads(item))
+        return samples
 
 
 async def get_memory() -> ChatMemoryClient:

@@ -12,6 +12,7 @@ from typing import Any
 from groq import AsyncGroq
 
 from qdrant_client import AsyncQdrantClient
+from redis import client
 from sqlalchemy.ext.asyncio import AsyncSession
 from groq import AsyncGroq
 from app.services.embedder import embed_query
@@ -22,6 +23,9 @@ from app.core.vector_store import similarity_search
 from app.schemas.schemas import BookingResponse, ChatResponse, SourceChunk
 from app.services.booking import detect_and_save_booking
 from app.services.embedder import embed_query
+
+
+
 
 _RAG_SYSTEM_PROMPT = """\
 You are a knowledgeable assistant. Answer the user's question using ONLY the
@@ -130,10 +134,32 @@ async def run_rag_query(
     # 8. Persist turn to Redis
     await memory.append_message(session_id, "user", effective_user_message)
     await memory.append_message(session_id, "assistant", answer)
-
+    await memory.append_eval_sample(session_id, {
+        "question": user_message,
+        "answer": answer,
+        "contexts": [s.text for s in sources],
+        "ground_truth": ""
+    })
+    
     return ChatResponse(
         session_id=session_id,
         answer=answer,
         sources=sources,
         booking=booking_result,
     )
+async def evaluate_rag(evaluation_data:list[dict], groq_api_key:str) -> dict:
+    from datasets import Dataset
+    from ragas import evaluate
+    from ragas.metrics import answer_relevancy, faithfulness, context_precision, context_recall
+    columnar={key:[row[key] for row in evaluation_data] for key in evaluation_data[0]}
+    dataset = Dataset.from_dict(columnar)
+
+    results = evaluate(
+        dataset=dataset,
+        metrics=[
+            answer_relevancy,
+            faithfulness,
+            context_precision,
+            context_recall,
+        ])
+    return results

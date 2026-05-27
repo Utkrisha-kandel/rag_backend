@@ -15,8 +15,8 @@ class IngestResponse(BaseModel):
 
 #chat
 class ChatRequest(BaseModel):
-    session_id: str = Field(..., description="Unique identifier for the chat session"),
-    message: str = Field(..., description="The content of the chat message"),
+    session_id: str = Field(..., description="Unique identifier for the chat session")
+    message: str = Field(..., description="The content of the chat message")
     document_id: str|None = Field(None, description="The ID of the document associated with the message")
 
 class SourceChunk(BaseModel):
